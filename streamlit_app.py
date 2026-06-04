@@ -24,12 +24,17 @@ Aplikasi ini menggunakan model CNN untuk mendeteksi apakah sebuah gambar beton *
 st.divider()
 
 # =====================================================
-# KONFIGURASI MODEL
+# KONFIGURASI
 # =====================================================
 MODEL_PATH  = "model_crack_beton.h5"
 IMG_HEIGHT  = 150
 IMG_WIDTH   = 150
 CLASS_NAMES = ["Retak", "Tidak_Retak"]
+
+# Isi FILE_ID dengan ID Google Drive model kamu
+# Contoh: jika link = https://drive.google.com/file/d/1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs/view
+# Maka FILE_ID = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs"
+GDRIVE_FILE_ID = "1IAbUUl0MVrhN6Hq9phGgDGm8SH9543Ga"
 
 # =====================================================
 # SIDEBAR
@@ -53,38 +58,49 @@ with st.sidebar:
     | Loss Train    | ~0.034  |
     | Loss Val      | ~0.078  |
     """)
-    st.divider()
-    st.caption("Letakkan `model_crack_beton.h5` di folder yang sama dengan `streamlit_app.py`.")
 
 # =====================================================
-# LOAD MODEL (lazy, hanya load sekali)
+# DOWNLOAD MODEL DARI GOOGLE DRIVE (jika belum ada)
 # =====================================================
 @st.cache_resource
-def load_model_cached(path):
-    import keras  # import di dalam fungsi agar tidak error saat module belum ada
-    model = keras.models.load_model(path, compile=False)
-    return model
+def load_model():
+    import tensorflow as tf
 
-# =====================================================
-# UPLOAD MODEL jika belum ada
-# =====================================================
-if not os.path.exists(MODEL_PATH):
-    st.warning("⚠️ File model `model_crack_beton.h5` tidak ditemukan.")
-    uploaded_model = st.file_uploader("Upload file model (.h5)", type=["h5"])
-    if uploaded_model is not None:
+    # Download dari Google Drive jika model belum ada
+    if not os.path.exists(MODEL_PATH):
+        if GDRIVE_FILE_ID == "":
+            return None, "File ID Google Drive belum diisi di kode."
+        try:
+            import gdown
+            with st.spinner("⏳ Mendownload model dari Google Drive..."):
+                url = f"https://drive.google.com/uc?id={GDRIVE_FILE_ID}"
+                gdown.download(url, MODEL_PATH, quiet=False)
+        except Exception as e:
+            return None, f"Gagal download model: {e}"
+
+    # Load model
+    try:
+        model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+        return model, None
+    except Exception as e:
+        return None, f"Gagal memuat model: {e}"
+
+model, error = load_model()
+
+if error:
+    st.error(f"❌ {error}")
+
+    # Fallback: upload manual
+    st.info("💡 Atau upload file model secara manual:")
+    uploaded_model = st.file_uploader("Upload model_crack_beton.h5", type=["h5"])
+    if uploaded_model:
         with open(MODEL_PATH, "wb") as f:
             f.write(uploaded_model.getbuffer())
-        st.success("✅ Model berhasil diupload! Refresh otomatis...")
+        st.success("✅ Model diupload! Refresh halaman...")
         st.rerun()
     st.stop()
 
-try:
-    model = load_model_cached(MODEL_PATH)
-    st.success("✅ Model berhasil dimuat!")
-except Exception as e:
-    st.error(f"❌ Gagal memuat model: {e}")
-    st.stop()
-
+st.success("✅ Model berhasil dimuat!")
 st.divider()
 
 # =====================================================
@@ -93,7 +109,7 @@ st.divider()
 def predict_image(img_pil):
     img_resized = img_pil.resize((IMG_WIDTH, IMG_HEIGHT))
     img_array   = np.array(img_resized, dtype=np.float32)
-    img_array   = np.expand_dims(img_array, axis=0)   # shape: [1, 150, 150, 3]
+    img_array   = np.expand_dims(img_array, axis=0)
     probs       = model.predict(img_array, verbose=0)[0]
     idx         = int(np.argmax(probs))
     return CLASS_NAMES[idx], float(probs[idx]) * 100, probs
@@ -142,7 +158,6 @@ if uploaded_files:
                     "Confidence (%)" : f"{conf:.2f}"
                 })
 
-    # Ringkasan tabel
     st.divider()
     st.subheader("📋 Ringkasan Hasil")
     df = pd.DataFrame(results)
@@ -171,8 +186,6 @@ with st.expander("📈 Pembahasan Hasil Training"):
     | Validation Accuracy | ~92.25% | ~98.75% |
     | Training Loss       | 0.546   | 0.034   |
     | Validation Loss     | 0.201   | 0.078   |
-
-    Model berhasil mempelajari pola gambar beton dengan sangat baik tanpa tanda-tanda *overfitting* yang signifikan.
     """)
 
 with st.expander("📝 Kesimpulan Akhir"):
