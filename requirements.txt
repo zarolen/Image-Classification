@@ -1,0 +1,7 @@
+streamlit
+tensorflow-cpu
+numpy
+pillow
+pandas
+h5py
+gdown
