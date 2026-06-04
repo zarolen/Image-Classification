@@ -1,6 +1,0 @@
-streamlit
-keras
-numpy
-pillow
-pandas
-h5py
