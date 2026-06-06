@@ -1,6 +1,8 @@
 import streamlit as st
+import tensorflow as tf
 import numpy as np
 from tensorflow.keras.models import load_model
+from tensorflow.keras.utils import img_to_array
 from PIL import Image
 import gdown
 import os
@@ -18,24 +20,50 @@ def load_my_model():
 
 model = load_my_model()
 
-st.set_page_config(page_title="Deteksi Retak Beton", page_icon="🏗️")
+class_names = ["Retak", "Tidak_Retak"]
 
-st.title("🏗️ Sistem Deteksi Retak Beton")
+st.set_page_config(
+    page_title="Deteksi Retak Beton",
+    page_icon="🏗️",
+    layout="centered"
+)
 
-uploaded_file = st.file_uploader("Upload gambar", type=["jpg","jpeg","png"])
+st.title("🏗️ Deteksi Retak Beton")
+st.write("Upload gambar beton untuk mendeteksi adanya retakan.")
 
-if uploaded_file:
+uploaded_file = st.file_uploader(
+    "Pilih gambar",
+    type=["jpg", "jpeg", "png"]
+)
+
+if uploaded_file is not None:
+
     image = Image.open(uploaded_file).convert("RGB")
-    st.image(image, use_container_width=True)
+
+    st.image(
+        image,
+        caption="Gambar yang diupload",
+        use_container_width=True
+    )
 
     img = image.resize((150,150))
-    img_array = np.array(img)
+
+    img_array = img_to_array(img)
+
     img_array = np.expand_dims(img_array, axis=0)
 
     prediction = model.predict(img_array)
 
-    classes = ["Retak", "Tidak Retak"]
-    idx = np.argmax(prediction)
+    predicted_class_index = np.argmax(prediction[0])
 
-    st.success(f"Hasil Prediksi: {classes[idx]}")
-    st.info(f"Confidence: {np.max(prediction)*100:.2f}%")
+    predicted_class_name = class_names[predicted_class_index]
+
+    confidence = prediction[0][predicted_class_index] * 100
+
+    st.success(
+        f"Hasil Prediksi : {predicted_class_name}"
+    )
+
+    st.info(
+        f"Confidence : {confidence:.2f}%"
+    )
